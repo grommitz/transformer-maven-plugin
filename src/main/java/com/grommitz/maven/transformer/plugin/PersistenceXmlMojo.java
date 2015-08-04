@@ -1,39 +1,38 @@
 package com.grommitz.maven.transformer.plugin;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
-import org.codehaus.plexus.util.FileUtils;
 
+import com.google.common.base.Charsets;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
+import com.google.common.io.CharSink;
+import com.google.common.io.Files;
 
 /**
  * 
  * Mojo which finds all persistence.xmls in the current project (and in modules if it
  * is a multi-module project) and updates the version numbers of the jar dependencies in 
- * them.
+ * them. Assumptions:<br>
+ * * project uses standard maven directory layout<br>
+ * * xml files are utf-8 encoded
  * 
  * @author Martin Charlesworth
  *
  */
-@Mojo(name = "persistencexml") //, defaultPhase = LifecyclePhase.INSTALL)
+@Mojo(name = "persistencexml")
 public class PersistenceXmlMojo extends AbstractMojo {
 
 	private List<Path> persistenceXmls = new ArrayList<>();
@@ -48,7 +47,6 @@ public class PersistenceXmlMojo extends AbstractMojo {
 			throw new MojoExecutionException("toVersion and fromVersion must be set");
 		}
 		findPersistenceXmls();
-		persistenceXmls.stream().forEach(f -> getLog().info("Transforming " + f));
 		transformPersistenceXmls();
 		getLog().info("DONE");
 	}
@@ -57,15 +55,20 @@ public class PersistenceXmlMojo extends AbstractMojo {
 		this.fromVersion= fromVer;
 		return this;
 	}
-	
+
 	public PersistenceXmlMojo toVersion(String toVer) {
 		this.toVersion= toVer;
 		return this;
 	}
-	
+
 	private void transformPersistenceXmls() {
 		persistenceXmls.stream().forEach(f -> {
-			new FileReplace().doIt(f);
+			getLog().info("Transforming " + f);
+			try {
+				new SearchAndReplace(f).replace(fromVersion, toVersion);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
 		});
 	}
 
@@ -80,13 +83,13 @@ public class PersistenceXmlMojo extends AbstractMojo {
 
 	private void findPersistenceXmls() {
 		try {
-			Files.walkFileTree(startingDir, new PersistenceXmlFinder());
+			java.nio.file.Files.walkFileTree(startingDir, new PersistenceXmlFinder());
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 
-	class PersistenceXmlFinder extends SimpleFileVisitor<Path> {
+	private class PersistenceXmlFinder extends SimpleFileVisitor<Path> {
 
 		@Override
 		public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
@@ -96,7 +99,7 @@ public class PersistenceXmlMojo extends AbstractMojo {
 			if (dir.getParent().equals(startingDir)) {
 				return FileVisitResult.CONTINUE;
 			}
-			if (!Files.isDirectory(dir)) {
+			if (!java.nio.file.Files.isDirectory(dir)) {
 				return FileVisitResult.CONTINUE;
 			}
 			String name = dir.getFileName().toString();
@@ -116,36 +119,28 @@ public class PersistenceXmlMojo extends AbstractMojo {
 		}
 	}
 
-	class FileReplace {
-		
-		List<String> lines = new ArrayList<String>();
-		String line = null;
+	private class SearchAndReplace {
 
-		public void doIt(Path persistenceXml) {
-			try {
-				File f1 = persistenceXml.toFile();
-				FileReader fr = new FileReader(f1);
-				BufferedReader br = new BufferedReader(fr);
-				while ((line = br.readLine()) != null) {
-					//System.out.println("line = " + line);
-					if (line.matches("^\\s*<jar-file>.*</jar-file>\\s*$")) {
-						getLog().info("matched line " + line);
-						line = line.replace(fromVersion, toVersion);
-					}
-					lines.add(line);
+		private final Path persistenceXml;
+
+		public SearchAndReplace(Path persistenceXml) {
+			this.persistenceXml = persistenceXml;
+		}
+
+		public void replace(String old, String replacement) throws IOException {
+			List<String> lines = Files.readLines(persistenceXml.toFile(), Charsets.UTF_8);
+
+			lines = lines.stream().map(line -> {
+				if (line.matches("^\\s*<jar-file>.*</jar-file>\\s*$")) {
+					getLog().info("matched line " + line);
+					line = line.replace(old, replacement);
+					getLog().info("replaced with " + line);
 				}
-				fr.close();
-				br.close();
+				return line;
+			}).collect(Collectors.toList());
 
-				FileWriter fw = new FileWriter(f1);
-				BufferedWriter out = new BufferedWriter(fw);
-				for(String s : lines)
-					out.write(s);
-				out.flush();
-				out.close();
-			} catch (Exception ex) {
-				ex.printStackTrace();
-			}
+			CharSink sink = Files.asCharSink(persistenceXml.toFile(), Charsets.UTF_8);
+			sink.writeLines(lines, System.getProperty("line.separator"));
 		}
 	}
 

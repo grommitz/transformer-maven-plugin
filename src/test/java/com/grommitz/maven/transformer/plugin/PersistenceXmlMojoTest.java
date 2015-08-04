@@ -15,8 +15,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.google.common.base.Charsets;
+
 /**
- * 
+ * Unit tests for {@link PersistenceXmlMojo}
+ *
  * @author Martin Charlesworth
  *
  */
@@ -36,11 +39,21 @@ public class PersistenceXmlMojoTest {
 	}
 	
 	@Test
-	public void should_find_persistence_xmls() throws Exception {
+	public void shouldFindPersistenceXmls() throws Exception {
+		PersistenceXmlMojo mojo = new PersistenceXmlMojo()
+				.startingDir(startingDir).fromVersion("a").toVersion("b");
+		mojo.execute();
+		assertThat(mojo.getPersistenceXmls().size(), is(2));
+	}
+	
+	@Test
+	public void shouldReplaceVersionNumberInPersistenceXmls() throws Exception {
 		PersistenceXmlMojo mojo = new PersistenceXmlMojo()
 				.startingDir(startingDir).fromVersion("1.0-SNAPSHOT").toVersion("2.0-SNAPSHOT");
 		mojo.execute();
-		assertThat(mojo.getPersistenceXmls().size(), is(2));
+		String content = new String(Files.readAllBytes(mojo.getPersistenceXmls().get(0)), Charsets.UTF_8);
+		assertThat(content.contains("2.0-SNAPSHOT"), is(true));
+		assertThat(content.contains("1.0-SNAPSHOT"), is(false));
 	}
 	
 	private void setupTempDirectoryStructure() throws IOException {
