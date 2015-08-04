@@ -3,6 +3,8 @@ package com.grommitz.maven.transformer.plugin;
 import static org.junit.Assert.*;
 import static org.hamcrest.Matchers.*;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,6 +26,7 @@ public class PersistenceXmlMojoTest {
 	
 	@Before
 	public void setUp() throws Exception {
+		startingDir = Paths.get("/tmp").resolve("mojotest");
 		setupTempDirectoryStructure();
 	}
 	
@@ -34,14 +37,13 @@ public class PersistenceXmlMojoTest {
 	
 	@Test
 	public void should_find_persistence_xmls() throws Exception {
-		PersistenceXmlMojo mojo = new PersistenceXmlMojo().startingDir(startingDir);
+		PersistenceXmlMojo mojo = new PersistenceXmlMojo()
+				.startingDir(startingDir).fromVersion("1.0-SNAPSHOT").toVersion("2.0-SNAPSHOT");
 		mojo.execute();
 		assertThat(mojo.getPersistenceXmls().size(), is(2));
 	}
 	
 	private void setupTempDirectoryStructure() throws IOException {
-		Path tmp = Paths.get("/tmp");
-		startingDir = tmp.resolve("mojotest");
 		Files.createDirectories(startingDir);
 		createFilesUnder(startingDir);
 
@@ -55,7 +57,16 @@ public class PersistenceXmlMojoTest {
 		Files.createDirectories(metaInf);
 		Path xml = metaInf.resolve("persistence.xml");
 		Path txt = metaInf.resolve("persistence.txt");
-		if (!Files.exists(xml)) Files.createFile(xml);
+		if (!Files.exists(xml)) { 
+			Path p = Files.createFile(xml);
+			try (BufferedWriter writer = new BufferedWriter(new FileWriter(p.toFile()))) {
+				writer.write("<xml>\n");
+				writer.write(" <persistence-unit name=\"myPU\" transaction-type=\"RESOURCE_LOCAL\">\n");
+				writer.write("  <jar-file>../path/to/file/myjar-1.0-SNAPSHOT.jar</jar-file>\n");
+				writer.write(" </persistence-unit>\n");
+				writer.write("</xml>\n");
+			}
+		}
 		if (!Files.exists(txt)) Files.createFile(txt);
 
 	}
