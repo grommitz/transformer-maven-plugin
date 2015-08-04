@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.apache.maven.plugin.MojoFailureException;
 import org.codehaus.plexus.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -41,28 +42,50 @@ public class PersistenceXmlMojoTest {
 	@Test
 	public void shouldFindPersistenceXmls() throws Exception {
 		PersistenceXmlMojo mojo = new PersistenceXmlMojo()
-				.startingDir(startingDir).fromVersion("a").toVersion("b");
+				.startingDir(startingDir).oldVersion("1").newVersion("2");
 		mojo.execute();
-		assertThat(mojo.getPersistenceXmls().size(), is(2));
+		assertThat(mojo.getPersistenceXmls().size(), is(3));
 	}
 	
 	@Test
 	public void shouldReplaceVersionNumberInPersistenceXmls() throws Exception {
 		PersistenceXmlMojo mojo = new PersistenceXmlMojo()
-				.startingDir(startingDir).fromVersion("1.0-SNAPSHOT").toVersion("2.0-SNAPSHOT");
+				.startingDir(startingDir).oldVersion("1.0-SNAPSHOT").newVersion("2.0-SNAPSHOT");
 		mojo.execute();
 		String content = new String(Files.readAllBytes(mojo.getPersistenceXmls().get(0)), Charsets.UTF_8);
 		assertThat(content.contains("2.0-SNAPSHOT"), is(true));
 		assertThat(content.contains("1.0-SNAPSHOT"), is(false));
 	}
 	
+	@Test ( expected = MojoFailureException.class )
+	public void shouldThrowIfVersionNumberNotMatched() throws Exception {
+		new PersistenceXmlMojo()
+				.startingDir(startingDir)
+				.oldVersion("bad.version")
+				.newVersion("2.0-SNAPSHOT")
+				.execute();
+	}
+	
+	@Test
+	public void shouldExcludeNamedModules() throws Exception {
+		PersistenceXmlMojo mojo = new PersistenceXmlMojo().startingDir(startingDir)
+				.oldVersion("1.0-SNAPSHOT").newVersion("2.0-SNAPSHOT")
+				.excludeModule("module2");
+		mojo.execute();
+		assertThat(mojo.getPersistenceXmls().size(), is(2));
+	}
+	
 	private void setupTempDirectoryStructure() throws IOException {
 		Files.createDirectories(startingDir);
 		createFilesUnder(startingDir);
 
-		Path module = startingDir.resolve("module");
-		Files.createDirectories(module);
-		createFilesUnder(module);
+		Path module1 = startingDir.resolve("module1");
+		Files.createDirectories(module1);
+		createFilesUnder(module1);
+		
+		Path module2 = startingDir.resolve("module2");
+		Files.createDirectories(module2);
+		createFilesUnder(module2);
 	}
 	
 	private void createFilesUnder(Path projectRoot) throws IOException {
