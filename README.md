@@ -6,19 +6,19 @@ To aid updating the persistence.xml files automatically during a release I have 
 
 Standalone usage:
 
-  mvn com.martincharlesworth:transformer-maven-plugin:persistencexml
+	mvn com.martincharlesworth:transformer-maven-plugin:persistencexml
 
 or add this to the pom:
 
-  <plugin>
-    <artifactId>transformer-maven-plugin</artifactId>
-    <groupId>com.martincharlesworth</groupId>
-    <version>1.0-SNAPSHOT</version>
-  </plugin>
+	<plugin>
+		<artifactId>transformer-maven-plugin</artifactId>
+		<groupId>com.martincharlesworth</groupId>
+		<version>1.0-SNAPSHOT</version>
+	</plugin>
 
 then you can use the shortened version of the command line:
 
-  mvn transformer:persistencexml
+	mvn transformer:persistencexml
 
 
 
